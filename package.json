@@ -1,0 +1,27 @@
+{
+  "version": "0.0.0",
+  "name": "orbz",
+  "description": "observable objects",
+  "author": {
+    "name": "m4rsh",
+    "email": "me@m4r.sh",
+    "url": "https://m4r.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m4r-sh/orbz.git"
+  },
+  "scripts": {
+    "build": "bun ./storm/build.js"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "bun": "./build/bun/index.js",
+      "node": "./build/node/index.js",
+      "browser": "./build/index.js",
+      "import": "./build/index.js",
+      "require": "./build/node/index.js"
+    }
+  }
+}
