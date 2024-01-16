@@ -44,7 +44,7 @@ class OrbCore {
     this.#models = defs.orbs;
     for (const key in defs.state) {
       this.#dep_graph[key] = new Set;
-      this.set_state(key, key in state ? state[key] : defs.state[key]);
+      this.set_state(key, key in state ? state[key] : structuredClone(defs.state[key]));
     }
     for (const key in defs.orbs) {
       this.#dep_graph[key] = new Set;
