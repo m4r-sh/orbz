@@ -45,6 +45,7 @@ export class OrbCore {
   #dep_graph = {}
   #get_watchlists = {}
   #link_graph = {}
+  #init_done = false
   constructor(defs,state,this_orb){
     this.#this_orb = this_orb
     this.#models = defs.orbs
@@ -52,6 +53,7 @@ export class OrbCore {
     for (const key in defs.state) {
       this.#dep_graph[key] = new Set()
       // TODO: only perform structured clone when necessary - aka not primitives?
+      // if state is inherited from model definition, it needs to not be a reference to a shared value
       this.set_state(key,(key in state) ? state[key] : structuredClone(defs.state[key]))
     }
     for(const key in defs.orbs){
@@ -79,6 +81,8 @@ export class OrbCore {
       this.#getters[key] = defs.getset[key].get.bind(this.#this_orb)
       this.#entrypoints[key] = defs.getset[key].set.bind(this.#this_orb)
     }
+
+    this.#init_done = true
 
   }
 
@@ -123,8 +127,8 @@ export class OrbCore {
   get_derived(k){
     if(!k.startsWith('_') || this.#isLocal()){
       this.#watch_get(k)
-      const prev = curr_get
       let res
+      const prev = curr_get
       curr_get = this
       try{
         res = this.#derived_value(k)
@@ -147,12 +151,19 @@ export class OrbCore {
   run_entrypoint(k,args, {async = false}={}){
     if(!k.startsWith('_') || this.#isLocal()){
       if(this.#entrypoints[k]){
+        let res
+        const prev = curr_get
         if(!async){
+          curr_get = this
           entry_count++
         }
-        let result = this.#entrypoints[k](...args)
+        try {
+          res = this.#entrypoints[k](...args)
+        } finally {
+          curr_get = prev
+        }
         if(async){
-          return result.then(ans => {
+          return res.then(ans => {
             // entry_count--
             this.#flush()
             return ans
@@ -160,7 +171,7 @@ export class OrbCore {
         } else {
           entry_count--
           this.#flush()
-          return result
+          return res
         }
       }
     }
@@ -182,13 +193,31 @@ export class OrbCore {
     // need to check if bulk gets: let { one, two, three } = this.my_orb
     // correctly use prefix
     // prefix = `${prefix}${k}.`
+
+    // if we're in a "watching" context
+    // let len = get_stack.length
+    // if(len != 0){
+    //   // if we're not already watching this sub-orb, start watching
+    //   if(!this.#used_orbs[k]){
+    //     this.#orbs[k][$Z].start_watch()
+    //     this.#used_orbs[k] = true
+    //   }
+
+    //   // we're trying to watch something, and we need to know a sub-orb's state
+    //   // which means we want that sub-orb to pay attention until whatever's watching
+    //   // is done. at that point, we'll notify the sub-orb to
+    //   // add that "watchlist" to its "dependencies" flush effect
+    //   // such that - after that sub-orbs state changes later
+    //   // and its keys coincide with our watchlist
+    //   // we can retrigger the callback that was watching for updates
+    // }
+    this.#watch_get(k)
     return this.#orbs[k]
   }
 
   // TODO: allow for private state and such when it's accessed internally
   #isLocal(){
-    return true
-    // TODO: curr == this
+    return (curr_get == this || !this.#init_done)
   }
 
   #watch_get(key){
@@ -240,23 +269,24 @@ export class OrbCore {
   }
 
   #invalidate(key,is_state=false){
-    if(is_state || this.#valid[key]){
-      this.#changed.add(key)
-      if(!is_state){
-        // marks derived values as invalid (cached value is stale)
-        this.#valid[key] = false
+    if(this.#init_done){
+      if(is_state || this.#valid[key]){
+        this.#changed.add(key)
+        if(!is_state){
+          // marks derived values as invalid (cached value is stale)
+          this.#valid[key] = false
+        }
+        this.#dep_graph[key].forEach(k => this.#invalidate(k))
       }
-      this.#dep_graph[key].forEach(k => this.#invalidate(k))
     }
   }
 
   #flush(){
     // if entry_stack is global, an entrypoint can orchestrate many context changes with only 1 effect loop
-    if(entry_count == 0){
+    if(entry_count == 0 && this.#changed.size > 0){
       this.#subs.forEach((watchlist,cb) => {
         if(watchlist == null || [...watchlist].some(k => this.#changed.has(k))){
           watchlist = new Set()
-          this.#subs.set(cb,watchlist)
           this.#get_stack_push()
           cb(this.#this_orb)
           let accessed = this.#get_stack_pop()
@@ -271,9 +301,12 @@ export class OrbCore {
           toSub.forEach(([orb_key,props]) => {})
           if(watchlist.size == 0){
             this.#subs.delete(cb)
+          } else {
+            this.#subs.set(cb,watchlist)
           }
         }
       })
+      // console.log(`Changed: ${[...this.#changed.keys()].join(',')}`)
       this.#changed.clear()
     }
   }

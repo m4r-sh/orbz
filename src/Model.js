@@ -6,6 +6,9 @@ import { $Z, MODEL_SELF, Z_DEFS, Z_MODEL_IDS, MODEL_IMPLEMENTS } from './symbols
 // TODO: Model.load()
 // TODO: Model.inspect()
 
+// TODO: Force $ function to be same (ignored if defined)
+// TODO: Allow overriding toString 
+
 let shared_proto = {
   $: { value: function(cb,watchlist){
     if(typeof cb == 'function'){
@@ -17,15 +20,15 @@ let shared_proto = {
   $invalidate: { value: function(str){
     this[$Z].inval(str)
   }},
-  toString: { value: function(){ 
-    return 'orb toString'
-  }},
-  [Symbol.toPrimitive]: { value: function(){
-    return 'orb toPrimitive'
-  }},
-  [Symbol.toStringTag]: { value: function(){ 
-    return 'orb string tag'
-  }}
+  // toString: { value: function(){ 
+  //   return 'orb toString'
+  // }},
+  // [Symbol.toPrimitive]: { value: function(){
+  //   return this.toString()
+  // }},
+  // [Symbol.toStringTag]: { value: function(){ 
+  //   return 'orb string tag'
+  // }}
 }
 
 
@@ -56,13 +59,12 @@ function Model(){
 
   ModelConstructor[Z_DEFS] = defs
   ModelConstructor[Z_MODEL_IDS] = ids
-
-  // create a prototype chain for every inherited model
-  // if(arguments.length >= 2){
-  //   Object.setPrototypeOf(ModelConstructor.prototype,arguments[0])
-  // }
+  ModelConstructor.toString = function(){
+    return stringifyModel(defs)
+  }
 
   // assign self to values with placeholder
+  // TODO: this should happen earlier to allow Model.self at parent level
   Object.keys(defs.orbs).forEach(k => {
     if(defs.orbs[k] == MODEL_SELF){
       defs.orbs[k] = ModelConstructor
@@ -133,13 +135,25 @@ function Model(){
   })
 
   Object.defineProperties(ModelConstructor.prototype, shared_proto);
+  
+
 
   return ModelConstructor
 }
 
 Model.self = () => MODEL_SELF
 
+Model.stringify = function(ModelConstructor){
+  return stringifyModel(ModelConstructor[Z_DEFS])
+}
+
 Object.defineProperty(Model,Symbol.hasInstance,{
+  value(o){
+    return (o && Object.hasOwn(o,Z_MODEL_IDS))
+  }
+})
+
+Object.defineProperty(Model,'toString',{
   value(o){
     return (o && Object.hasOwn(o,Z_MODEL_IDS))
   }
@@ -205,3 +219,50 @@ function deepMerge(target, source) {
   }
   return result;
 }
+
+
+export function stringifyModel({state,derived,entry,orbs,getset,async}){
+  let str = `{\n` 
+  str += Object.keys(state).map(k => `${k}:${parseValue(state[k],k)}`).join(',\n')
+  str += ',\n'
+  str += Object.keys(derived).map(k => `${derived[k]}`).join(',\n')
+  str += ',\n'
+  str += Object.keys(entry).map(k => `${entry[k]}`).join(',\n')
+  str += ',\n'
+  str += '}'
+  return str
+}
+
+// Adapted from https://github.com/WebReflection/stringified-handler
+/*! (c) Andrea Giammarchi - ISC */
+
+export const stringifyObject = (handler) => (
+  '{' + Object.keys(handler).map(key => {
+    const {get, set, value} = Object.getOwnPropertyDescriptor(handler, key);
+    if (get && set)
+      key = get + ',' + set;
+    else if (get)
+      key = '' + get;
+    else if (set)
+      key = '' + set;
+    else
+      key = JSON.stringify(key) + ':' + parseValue(value, key);
+    return key;
+  }).join(',') + '}'
+);
+
+const parseValue = (value, key) => {
+  const type = typeof value;
+  if (type === 'function')
+    return value.toString().replace(
+      new RegExp('^(\\*|async )?\\s*' + key + '[^(]*?\\('),
+      (_, $1) => $1 === '*' ? 'function* (' : (($1 || '') + 'function (')
+    );
+  if (type === 'object' && value)
+    return Array.isArray(value) ?
+            parseArray(value) :
+            stringifyObject(value);
+  return JSON.stringify(value);
+};
+
+const parseArray = array => ('[' + array.map(parseValue).join(',') + ']');

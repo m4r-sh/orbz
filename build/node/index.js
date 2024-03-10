@@ -38,6 +38,7 @@ class OrbCore {
   #dep_graph = {};
   #get_watchlists = {};
   #link_graph = {};
+  #init_done = false;
   constructor(defs, state, this_orb) {
     this.#this_orb = this_orb;
     this.#models = defs.orbs;
@@ -66,6 +67,7 @@ class OrbCore {
       this.#getters[key] = defs.getset[key].get.bind(this.#this_orb);
       this.#entrypoints[key] = defs.getset[key].set.bind(this.#this_orb);
     }
+    this.#init_done = true;
   }
   add_link(k, options) {
     let link_set = this.#link_graph[k];
@@ -100,8 +102,8 @@ class OrbCore {
   get_derived(k) {
     if (!k.startsWith("_") || this.#isLocal()) {
       this.#watch_get(k);
-      const prev = curr_get;
       let res;
+      const prev = curr_get;
       curr_get = this;
       try {
         res = this.#derived_value(k);
@@ -114,19 +116,26 @@ class OrbCore {
   run_entrypoint(k, args, { async = false } = {}) {
     if (!k.startsWith("_") || this.#isLocal()) {
       if (this.#entrypoints[k]) {
+        let res;
+        const prev = curr_get;
         if (!async) {
+          curr_get = this;
           entry_count++;
         }
-        let result = this.#entrypoints[k](...args);
+        try {
+          res = this.#entrypoints[k](...args);
+        } finally {
+          curr_get = prev;
+        }
         if (async) {
-          return result.then((ans) => {
+          return res.then((ans) => {
             this.#flush();
             return ans;
           });
         } else {
           entry_count--;
           this.#flush();
-          return result;
+          return res;
         }
       }
     }
@@ -142,10 +151,11 @@ class OrbCore {
     }
   }
   get_orb(k) {
+    this.#watch_get(k);
     return this.#orbs[k];
   }
   #isLocal() {
-    return true;
+    return curr_get == this || !this.#init_done;
   }
   #watch_get(key) {
     let len = get_stack.length;
@@ -190,20 +200,21 @@ class OrbCore {
     }
   }
   #invalidate(key, is_state = false) {
-    if (is_state || this.#valid[key]) {
-      this.#changed.add(key);
-      if (!is_state) {
-        this.#valid[key] = false;
+    if (this.#init_done) {
+      if (is_state || this.#valid[key]) {
+        this.#changed.add(key);
+        if (!is_state) {
+          this.#valid[key] = false;
+        }
+        this.#dep_graph[key].forEach((k) => this.#invalidate(k));
       }
-      this.#dep_graph[key].forEach((k) => this.#invalidate(k));
     }
   }
   #flush() {
-    if (entry_count == 0) {
+    if (entry_count == 0 && this.#changed.size > 0) {
       this.#subs.forEach((watchlist, cb) => {
         if (watchlist == null || [...watchlist].some((k) => this.#changed.has(k))) {
           watchlist = new Set;
-          this.#subs.set(cb, watchlist);
           this.#get_stack_push();
           cb(this.#this_orb);
           let accessed = this.#get_stack_pop();
@@ -218,6 +229,8 @@ class OrbCore {
           });
           if (watchlist.size == 0) {
             this.#subs.delete(cb);
+          } else {
+            this.#subs.set(cb, watchlist);
           }
         }
       });
@@ -259,6 +272,9 @@ var Model = function() {
   });
   ModelConstructor[Z_DEFS] = defs;
   ModelConstructor[Z_MODEL_IDS] = ids;
+  ModelConstructor.toString = function() {
+    return stringifyModel(defs);
+  };
   Object.keys(defs.orbs).forEach((k) => {
     if (defs.orbs[k] == MODEL_SELF) {
       defs.orbs[k] = ModelConstructor;
@@ -374,6 +390,17 @@ var deepMerge = function(target, source) {
   }
   return result;
 };
+function stringifyModel({ state, derived, entry, orbs, getset, async }) {
+  let str = `{\n`;
+  str += Object.keys(state).map((k) => `${k}:${parseValue(state[k], k)}`).join(",\n");
+  str += ",\n";
+  str += Object.keys(derived).map((k) => `${derived[k]}`).join(",\n");
+  str += ",\n";
+  str += Object.keys(entry).map((k) => `${entry[k]}`).join(",\n");
+  str += ",\n";
+  str += "}";
+  return str;
+}
 var shared_proto = {
   $: { value: function(cb, watchlist) {
     if (typeof cb == "function") {
@@ -384,23 +411,44 @@ var shared_proto = {
   } },
   $invalidate: { value: function(str) {
     this[$Z2].inval(str);
-  } },
-  toString: { value: function() {
-    return "orb toString";
-  } },
-  [Symbol.toPrimitive]: { value: function() {
-    return "orb toPrimitive";
-  } },
-  [Symbol.toStringTag]: { value: function() {
-    return "orb string tag";
   } }
 };
 Model.self = () => MODEL_SELF;
+Model.stringify = function(ModelConstructor) {
+  return stringifyModel(ModelConstructor[Z_DEFS]);
+};
 Object.defineProperty(Model, Symbol.hasInstance, {
   value(o) {
     return o && Object.hasOwn(o, Z_MODEL_IDS);
   }
 });
+Object.defineProperty(Model, "toString", {
+  value(o) {
+    return o && Object.hasOwn(o, Z_MODEL_IDS);
+  }
+});
+/*! (c) Andrea Giammarchi - ISC */
+var stringifyObject = (handler) => "{" + Object.keys(handler).map((key) => {
+  const { get, set, value } = Object.getOwnPropertyDescriptor(handler, key);
+  if (get && set)
+    key = get + "," + set;
+  else if (get)
+    key = "" + get;
+  else if (set)
+    key = "" + set;
+  else
+    key = JSON.stringify(key) + ":" + parseValue(value, key);
+  return key;
+}).join(",") + "}";
+var parseValue = (value, key) => {
+  const type = typeof value;
+  if (type === "function")
+    return value.toString().replace(new RegExp("^(\\*|async )?\\s*" + key + "[^(]*?\\("), (_, $1) => $1 === "*" ? "function* (" : ($1 || "") + "function (");
+  if (type === "object" && value)
+    return Array.isArray(value) ? parseArray(value) : stringifyObject(value);
+  return JSON.stringify(value);
+};
+var parseArray = (array) => "[" + array.map(parseValue).join(",") + "]";
 
 // src/Orb.js
 var Orb = function(def) {
