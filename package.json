@@ -12,16 +12,17 @@
     "url": "git+https://github.com/m4r-sh/orbz.git"
   },
   "scripts": {
-    "build": "bun ./storm/build.js"
+    "build": "bun ./scripts/build.js"
   },
+  "module": "./dist/index.js",
   "type": "module",
   "exports": {
     ".": {
-      "bun": "./build/bun/index.js",
-      "node": "./build/node/index.js",
-      "browser": "./build/index.js",
-      "import": "./build/index.js",
-      "require": "./build/node/index.js"
+      "bun": "./dist/bun/index.js",
+      "node": "./dist/node/index.js",
+      "browser": "./dist/index.js",
+      "import": "./dist/index.js",
+      "require": "./dist/node/index.js"
     }
   }
 }
