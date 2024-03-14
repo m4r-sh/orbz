@@ -32,20 +32,6 @@ export const $Z = Symbol('orbz-core')
 
 
 export class OrbCore {
-  #models = {}
-  #state = {}
-  #orbs = {}
-  #changed = new Set()
-  #cache = {}
-  #valid = {}
-  #getters = {}
-  #entrypoints = {}
-  #this_orb
-  #subs = new Map()
-  #dep_graph = {}
-  #get_watchlists = {}
-  #link_graph = {}
-  #init_done = false
 
   // TODO: allow for private state and such when it's accessed internally
   #isLocal(){
@@ -142,7 +128,23 @@ export class OrbCore {
       this.#changed.clear()
     }
   }
+
   
+  #models = {}
+  #state = {}
+  #orbs = {}
+  #changed = new Set()
+  #cache = {}
+  #valid = {}
+  #getters = {}
+  #entrypoints = {}
+  #this_orb
+  #subs = new Map()
+  #dep_graph = {}
+  #get_watchlists = {}
+  #link_graph = {}
+  #init_done = false
+
   constructor(defs,state,this_orb){
     this.#this_orb = this_orb
     this.#models = defs.orbs
