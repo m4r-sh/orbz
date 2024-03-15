@@ -25,6 +25,20 @@ var prefix = "";
 var $Z = Symbol("orbz-core");
 
 class OrbCore {
+  #models = {};
+  #state = {};
+  #orbs = {};
+  #changed = new Set;
+  #cache = {};
+  #valid = {};
+  #getters = {};
+  #entrypoints = {};
+  #this_orb;
+  #subs = new Map;
+  #dep_graph = {};
+  #get_watchlists = {};
+  #link_graph = {};
+  #init_done = false;
   #isLocal() {
     return curr_get == this || !this.#init_done;
   }
@@ -108,20 +122,6 @@ class OrbCore {
       this.#changed.clear();
     }
   }
-  #models = {};
-  #state = {};
-  #orbs = {};
-  #changed = new Set;
-  #cache = {};
-  #valid = {};
-  #getters = {};
-  #entrypoints = {};
-  #this_orb;
-  #subs = new Map;
-  #dep_graph = {};
-  #get_watchlists = {};
-  #link_graph = {};
-  #init_done = false;
   constructor(defs, state, this_orb) {
     this.#this_orb = this_orb;
     this.#models = defs.orbs;

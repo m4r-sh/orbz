@@ -4,7 +4,8 @@ node_modules
 *.lock
 *.log
 
-storm
-tests
-models
-scripts
+storm/
+tests/
+models/
+scripts/
+docs/
