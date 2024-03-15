@@ -17,9 +17,9 @@
 
 # Overview
 
-[*] Feels like working with objects directly, keeping your codebase clean and simple.
-[*] Effects get re-triggered if and only if the underlying data changes.
-[*] Derived values only get calculated if you need them.
+- [*] Feels like working with objects directly, keeping your codebase clean and simple.
+- [*] Effects get re-triggered if and only if the underlying data changes.
+- [*] Derived values only get calculated if you need them.
 
 Under the hood, the Model definition creates a prototype that Orbs inherit.
 This prototype uses accessors to track usage and coordinate reactive updates.
