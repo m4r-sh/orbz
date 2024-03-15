@@ -17,18 +17,18 @@
 
 # Overview
 
-- [x] Feels like working with objects directly, keeping your codebase clean and simple.
-- [x] Effects get re-triggered if and only if the underlying data changes.
-- [x] Derived values only get calculated if you need them.
+- Feels like working with objects directly, keeping your codebase clean and simple.
+- Effects get re-triggered if and only if the underlying data changes.
+- Derived values only get calculated if you need them.
 
 Under the hood, the Model definition creates a prototype that Orbs inherit.
 This prototype uses accessors to track usage and coordinate reactive updates.
 
 The magic of Orbz comes from writing Models. Models are similar to classes, but with observability built-in. Their shape is frozen, such that only methods and public state values can alter each orb.
 They're defined by an object literal, with the following special rules:
-- keys prefixed with _ are 'hidden'. only available for internal methods and serialization
 - getters are "derived" - and are only calculated if they're accessed. They keep track of internal state they rely on, and remain cached until one of the underlying values changes.
-- sync methods are batched, meaning effects are paused until the method is finished. This allows bulk edits without spammed effects
+- methods are batched, meaning effects are paused until the method is finished. This allows bulk edits without spammed effects
+- keys prefixed with _ are 'hidden'. only available for internal methods and serialization
 - generator methods are semi-batched, with resumability across sessions. *This is in progress*
 - values that are Models are guaranteed to be that Model, or else null.
 - values that are Orbs are guaranteed to be a unique Orb per instance, or another Orb of the same Model
@@ -48,6 +48,8 @@ They're defined by an object literal, with the following special rules:
 ## effect(callback, options)
 
 *Returns*: a function to cancel the effect
+
+The effect callback is called instantly with the current values. Accessed orb values are tracked, and whenever their values change, the effect callback is re-run.
 
 ---
 
@@ -84,7 +86,7 @@ To customize Orb behavior, a few methods are available to be overriden. The keys
 
 ---
 
-# Examples
+# Example
 
 ```js
 import { Model } from 'orbz'
