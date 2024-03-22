@@ -241,13 +241,13 @@ class OrbCore {
 }
 
 // src/symbols.js
-var $Z2 = Symbol("orb-core");
-var $L = Symbol("list-core");
-var MODEL_SELF = Symbol("m-self");
-var SYMBOL_ISMODEL = Symbol("orbz-ismodel");
-var Z_DEFS = Symbol("model-def");
-var Z_MODEL_IDS = Symbol("model-id");
-var MODEL_IMPLEMENTS = Symbol("model-id");
+var $Z2 = Symbol.for("orbz-orb-core");
+var $L = Symbol.for("orbz-list-core");
+var MODEL_SELF = Symbol.for("orbz-m-self");
+var SYMBOL_ISMODEL = Symbol.for("orbz-orbz-ismodel");
+var Z_DEFS = Symbol.for("orbz-model-def");
+var Z_MODEL_IDS = Symbol.for("orbz-model-id");
+var MODEL_IMPLEMENTS = Symbol.for("orbz-model-implements");
 
 // src/Model.js
 var Model = function() {
